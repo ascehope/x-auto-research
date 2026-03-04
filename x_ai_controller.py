@@ -199,8 +199,9 @@ class XAIController:
             return [summary, news, explain, engaging]
                 
         except Exception as e:
-            print(f"Gemini API (要約・投稿案生成) エラー: {e}")
-            return ["エラーが発生しました", "", "", ""]
+            error_msg = str(e)
+            print(f"Gemini API (要約・投稿案生成) エラー: {error_msg}")
+            return [f"エラーが発生しました: {error_msg[:100]}", "", "", ""]
 
 # テスト用コード（直接実行された場合のみ）
 if __name__ == "__main__":

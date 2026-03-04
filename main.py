@@ -55,13 +55,15 @@ def main():
                 
             # リサーチ結果の記録用データを構築
             for t in filtered_tweets:
-                # [取得日時, 投稿テキスト, URL, いいね数, リポスト数(RT+引用), 返信数, 保存数]
+                # [取得日時, 元アカウント, 投稿テキスト, URL, いいね数, リポスト数(RT+引用), 返信数, 保存数]
                 total_reposts = t['retweet_count'] + t['quote_count']
-                row = [now_str, t['text'], t['url'], t['like_count'], total_reposts, t['reply_count'], t['bookmark_count']]
+                row = [now_str, account, t['text'], t['url'], t['like_count'], total_reposts, t['reply_count'], t['bookmark_count']]
                 research_data_to_append.append(row)
                 
             print(f"  話題の要約と投稿案 (ドラフト) を生成中...")
-            drafts = xai_api.generate_post_drafts_with_gemini(display_name, filtered_tweets)
+            # Geminiに全部渡すとノイズになり文字数制限に引っかかるリスクがあるため、いいね上位最大5件に絞って渡す
+            top_tweets_for_gemini = filtered_tweets[:5]
+            drafts = xai_api.generate_post_drafts_with_gemini(display_name, top_tweets_for_gemini)
             
             # ドラフト結果の記録用データを構築
             # [作成日, 元アカウント, 要約, 案1(速報), 案2(解説), 案3(煽り)]
