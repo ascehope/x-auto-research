@@ -31,8 +31,23 @@ class XAIController:
         if not gemini_api_key:
             raise ValueError("Gemini APIの環境変数が設定されていません。")
         genai.configure(api_key=gemini_api_key)
-        # 傾向分析等の複雑なタスクには pro モデルを使用
-        self.model = genai.GenerativeModel('gemini-1.5-pro')
+        # コストパフォーマンスが良く速い最新安定モデルを指定
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+
+    def get_account_display_name(self, account_id: str) -> str:
+        """
+        @アカウントIDからX上の表示名（名前）を取得する
+        """
+        try:
+            clean_username = account_id.lstrip("@")
+            # ユーザー情報を取得
+            user = self.client_v2.get_user(username=clean_username)
+            if user and user.data:
+                return user.data.name
+            return account_id
+        except Exception as e:
+            print(f"アカウント名取得エラー ({account_id}): {e}")
+            return account_id
 
     def get_japan_trends(self) -> list[str]:
         """

@@ -35,8 +35,9 @@ def main():
         date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
         for account in target_accounts:
-            display_name = account
-            print(f"\n[Account: {display_name}] が昨日投稿したツイートを検索しています...")
+            # アカウントIDからX上の表示名を取得
+            display_name = xai_api.get_account_display_name(account)
+            print(f"\n[Account: {display_name} ({account})] が昨日投稿したツイートを検索しています...")
             
             # 最大500件まで（ただし1個人の1日のツイートなので実際は数件〜数十件）
             tweets = xai_api.search_buzz_tweets(account, max_results=500)
@@ -55,9 +56,9 @@ def main():
                 
             # リサーチ結果の記録用データを構築
             for t in filtered_tweets:
-                # [取得日時, 元アカウント, 投稿テキスト, URL, いいね数, リポスト数(RT+引用), 返信数, 保存数]
+                # [取得日時, 元アカウント(表示名), 投稿テキスト, URL, いいね数, リポスト数(RT+引用), 返信数, 保存数]
                 total_reposts = t['retweet_count'] + t['quote_count']
-                row = [now_str, account, t['text'], t['url'], t['like_count'], total_reposts, t['reply_count'], t['bookmark_count']]
+                row = [now_str, display_name, t['text'], t['url'], t['like_count'], total_reposts, t['reply_count'], t['bookmark_count']]
                 research_data_to_append.append(row)
                 
             print(f"  話題の要約と投稿案 (ドラフト) を生成中...")
