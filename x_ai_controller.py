@@ -97,13 +97,20 @@ class XAIController:
         start_time = start_time_jst.astimezone(timezone.utc)
         end_time = end_time_jst.astimezone(timezone.utc)
 
-        # キーワードが空等の場合はより広範なAI関連で検索
-        if not keyword or keyword.strip() == "":
-            query = '("AI" OR "ChatGPT" OR "生成AI" OR "LLM" OR "Claude" OR "プロンプト") -is:retweet'
-            display_kw = "AI関連全般"
+        # アカウント指定検索の場合は from:ユーザー名 というクエリを使う
+        if keyword and not keyword.startswith("from:"):
+            # 先頭に @ がついている場合は削除しておく
+            clean_username = keyword.lstrip("@")
+            query = f'from:{clean_username} -is:retweet -is:reply'
+            display_kw = f"@{clean_username}"
         else:
-            query = f'({keyword}) -is:retweet'
+            query = f'{keyword} -is:retweet -is:reply'
             display_kw = keyword
+
+        # 念のため、キーワードが空の場合は安全に空リストを返す
+        if not keyword or keyword.strip() == "":
+            print("検索対象アカウントが指定されていません。")
+            return []
 
         try:
             results = []
@@ -130,9 +137,10 @@ class XAIController:
             print(f"ツイート検索エラー (keyword: {display_kw}): {e}")
             return []
 
-    def generate_post_drafts_with_gemini(self, original_keyword: str, tweets_data: list[dict]) -> list[str]:
+    def generate_post_drafts_with_gemini(self, original_account: str, tweets_data: list[dict]) -> list[str]:
         """
-        バズツイートのリストから傾向を分析し、今日の投稿案を3つ作成する
+        バズツイートのリストから傾向を分析し、要約と今日の投稿案3パターンを作成する
+        戻り値のリスト構成: [要約, 速報案, 解説案, 煽り案]
         """
         if not tweets_data:
             return []
@@ -143,36 +151,45 @@ class XAIController:
             tweets_info += f"{i}. いいね数: {t['like_count']}件\nテキスト: {t['text']}\n---\n"
 
         prompt = f"""
-私はX（旧Twitter）のアカウントを運用しています。
-キーワード「{original_keyword}」について、最近以下のような投稿が反響（いいね100〜200）を呼んでいます。
+私はX（旧Twitter）でAI関連の最新情報を発信しているアカウントです。
+注目しているインフルエンサー「{original_account}」が昨日投稿し、反響（いいね100〜300）を呼んだ以下のツイート群があります。
 
 {tweets_info}
 
-上記のバズツイートの傾向、表現方法、トピックの切り口を分析してください。
-そして、その分析に基づき、私が今日投稿するためのオリジナルで魅力的な「投稿案（ドラフト）」を**3つ**作成してください。
+上記のツイート群の内容を読み込み、日本のAIユーザーに向けて以下の【4つの要素】を出力してください。
+出力形式は必ず指定されたプレフィックスから始めてください。
 
-【条件】
-- 出力はJSON形式などのプログラムで扱いやすい形式を使わず、「1. 」「2. 」「3. 」という番号付きでプレーンテキストで出力してください。
-- ハッシュタグを含める場合は適切なものを1〜2個添えてください。
+【出力要素と条件】
+[要約]: 元のツイートが英語等の場合は日本語に翻訳し、最新ツール情報やその話題の「一番の要点は何か」を1〜2文で簡潔に解説してください。
+[速報]: いち早く新しいニュースやツールが出たことをシンプルに伝える、速報・ニューススタイルの投稿案（140字程度）。
+[解説]: なぜそのAIツールや話題が凄いのか、仕事でどう使えるのか等を自分なりの意見を交えて深掘りする解説スタイルの投稿案（長文OK）。
+[煽り]: 「このAIツール、もう使ってる？」など、フォロワーに問いかけてエンゲージメント（リプライ等）を促す煽りスタイルの投稿案。
+
+※各投稿案には必要に応じて適切なハッシュタグ（#AI #ChatGPT など）を1〜2個添えてください。
 """
         try:
             response = self.model.generate_content(prompt)
-            # 生成されたテキストを「1.」「2.」等のプレフィックスを目安に分割
             drafts_text = response.text.strip()
             
-            # 簡易的な分割処理（適宜調整）
+            # プレフィックスによるパース
             import re
-            parts = re.split(r'\n\d+\.\s*', '\n' + drafts_text)[1:]
             
-            # 分割に失敗した・あるいは3つない場合は、改行でざっくり分けるかそのまま返すフォールバック
-            if len(parts) >= 3:
-                return [p.strip() for p in parts[:3]]
-            else:
-                return [drafts_text, "", ""]
+            # 各要素を抽出するための正規表現
+            summary_match = re.search(r'\[要約\]:?(.*?)(?=\[速報\]|$)', drafts_text, re.DOTALL)
+            news_match = re.search(r'\[速報\]:?(.*?)(?=\[解説\]|$)', drafts_text, re.DOTALL)
+            explain_match = re.search(r'\[解説\]:?(.*?)(?=\[煽り\]|$)', drafts_text, re.DOTALL)
+            engaging_match = re.search(r'\[煽り\]:?(.*?)$', drafts_text, re.DOTALL)
+            
+            summary = summary_match.group(1).strip() if summary_match else "要約の抽出に失敗しました"
+            news = news_match.group(1).strip() if news_match else ""
+            explain = explain_match.group(1).strip() if explain_match else ""
+            engaging = engaging_match.group(1).strip() if engaging_match else ""
+            
+            return [summary, news, explain, engaging]
                 
         except Exception as e:
-            print(f"Gemini API (投稿案生成) エラー: {e}")
-            return ["エラーが発生しました", "", ""]
+            print(f"Gemini API (要約・投稿案生成) エラー: {e}")
+            return ["エラーが発生しました", "", "", ""]
 
 # テスト用コード（直接実行された場合のみ）
 if __name__ == "__main__":

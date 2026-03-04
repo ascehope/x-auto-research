@@ -12,18 +12,19 @@ def main():
         sheets_api = GoogleSheetsController()
         xai_api = XAIController()
         
-        # 2. キーワードの取得と設定
-        print("\n--- 1. キーワード取得・設定 ---")
+        # 2. 対象アカウント名の取得と設定
+        print("\n--- 1. アカウントリスト取得・設定 ---")
+        # 設定シートのA列をアカウントIDとみなして取得
         manual_keywords = sheets_api.get_manual_keywords()
-        print(f"手動設定スプレッドシートのキーワード: {manual_keywords}")
+        print(f"設定シートから取得したアカウントリスト: {manual_keywords}")
         
-        # AI関連を広範に調べるためトレンド取得はスキップし、空欄の場合はAI全般クエリを実行する
-        if not manual_keywords:
-            all_keywords = [""]
-        else:
-            all_keywords = manual_keywords
+        target_accounts = [acc for acc in manual_keywords if acc.strip()]
+        
+        if not target_accounts:
+            print("設定シートに検索対象のアカウント（@ID）が入力されていません。終了します。")
+            return
             
-        print(f"最終検索キーワード: {all_keywords}")
+        print(f"最終検索対象アカウント: {target_accounts}")
         
         # 3. 各キーワードでバズツイートを検索・フィルタリングし、投稿案を生成
         print("\n--- 2. 昨日のAI関連バズツイート検索と投稿案の生成 ---")
@@ -33,12 +34,12 @@ def main():
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-        for kw in all_keywords:
-            display_name = kw if kw else "AI関連全般"
-            print(f"\n[Keyword: {display_name}] で昨日投稿されたツイートを検索しています...")
+        for account in target_accounts:
+            display_name = account
+            print(f"\n[Account: {display_name}] が昨日投稿したツイートを検索しています...")
             
-            # 最大500件まで遡って取得する
-            tweets = xai_api.search_buzz_tweets(kw, max_results=500)
+            # 最大500件まで（ただし1個人の1日のツイートなので実際は数件〜数十件）
+            tweets = xai_api.search_buzz_tweets(account, max_results=500)
             
             # 要件「いいね数100〜300の範囲」の投稿に絞り込む
             filtered_tweets = [t for t in tweets if 100 <= t['like_count'] <= 300]
@@ -58,11 +59,11 @@ def main():
                 row = [now_str, t['text'], t['url'], t['like_count']]
                 research_data_to_append.append(row)
                 
-            print(f"  投稿案 (ドラフト) を生成中...")
+            print(f"  話題の要約と投稿案 (ドラフト) を生成中...")
             drafts = xai_api.generate_post_drafts_with_gemini(display_name, filtered_tweets)
             
             # ドラフト結果の記録用データを構築
-            # [作成日, 元キーワード, 投稿案1, 投稿案2, 投稿案3]
+            # [作成日, 元アカウント, 要約, 案1(速報), 案2(解説), 案3(煽り)]
             draft_row = [date_str, display_name] + drafts
             draft_data_to_append.append(draft_row)
 
