@@ -32,7 +32,7 @@ class XAIController:
             raise ValueError("Gemini APIの環境変数が設定されていません。")
         genai.configure(api_key=gemini_api_key)
         # コストパフォーマンスが良く速い最新安定モデルを指定
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
 
     def get_account_display_name(self, account_id: str) -> str:
         """
