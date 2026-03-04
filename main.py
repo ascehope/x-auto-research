@@ -40,11 +40,12 @@ def main():
                 continue
                 
             print(f"\n[Keyword: {kw}] を検索しています...")
-            tweets = xai_api.search_buzz_tweets(kw, max_results=50) # APIコスト制限
+            # X APIの制限回避のため、1度により多くの最新ツイート(100件)を取得してプログラム内で探す
+            tweets = xai_api.search_buzz_tweets(kw, max_results=100)
             
-            # 要件「いいね数が100〜200の範囲」の投稿のみに絞り込む
-            filtered_tweets = [t for t in tweets if 100 <= t['like_count'] <= 200]
-            print(f"検索結果: {len(tweets)}件 -> 条件(いいね100~200)合致: {len(filtered_tweets)}件")
+            # 要件「いいね数が100〜300の範囲」の投稿のみに絞り込む
+            filtered_tweets = [t for t in tweets if 100 <= t['like_count'] <= 300]
+            print(f"検索結果: {len(tweets)}件 -> 条件(いいね100~300)合致: {len(filtered_tweets)}件")
             
             if not filtered_tweets:
                 print(f"  条件に合うツイートが無かったためスキップします。")

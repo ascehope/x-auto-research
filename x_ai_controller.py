@@ -80,12 +80,13 @@ class XAIController:
             print(f"Gemini API (キーワード抽出) エラー: {e}")
             return []
 
-    def search_buzz_tweets(self, keyword: str, max_results: int = 50) -> list[dict]:
+    def search_buzz_tweets(self, keyword: str, max_results: int = 100) -> list[dict]:
         """
-        X API v2 を利用して、指定キーワードでいいね数が100以上のツイートを検索する
-        ※APIコストに配慮し max_results を指定。いいね 100〜200 への絞り込みは後段で行う。
+        X API v2 を利用して、指定キーワードでツイートを検索する
+        ※APIコストに配慮し max_results を指定。いいね 100〜300 への絞り込みはPythonプログラム本体で行う。
         """
-        query = f"{keyword} min_faves:100 -is:retweet"
+        # 現在のX APIプランでは min_faves などの高度な演算子が使えないため、キーワードのみで検索する
+        query = f"{keyword} -is:retweet"
         try:
             # tweet_fieldsで取得したい追加情報を指定（public_metricsにいいね数などが含まれる）
             response = self.client_v2.search_recent_tweets(
