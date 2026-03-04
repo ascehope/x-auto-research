@@ -80,41 +80,54 @@ class XAIController:
             print(f"Gemini API (キーワード抽出) エラー: {e}")
             return []
 
-    def search_buzz_tweets(self, keyword: str, max_results: int = 100) -> list[dict]:
+    def search_buzz_tweets(self, keyword: str, max_results: int = 500) -> list[dict]:
         """
-        X API v2 を利用して、指定キーワードでツイートを検索する
-        ※APIコストに配慮し max_results を指定。いいね 100〜300 への絞り込みはPythonプログラム本体で行う。
+        X API v2 を利用して、昨日のツイートを検索する。Paginatorで複数ページ検索対応。
         """
-        # 現在のX APIプランでは min_faves などの高度な演算子が使えないため、キーワードのみで検索する
-        query = f"{keyword} -is:retweet"
-        try:
-            # tweet_fieldsで取得したい追加情報を指定（public_metricsにいいね数などが含まれる）
-            response = self.client_v2.search_recent_tweets(
-                query=query,
-                max_results=max_results,
-                tweet_fields=['created_at', 'public_metrics', 'author_id']
-            )
+        from datetime import datetime, timezone, timedelta
+        
+        # JST(UTC+9)基準で昨日の0時〜23時59分を計算
+        JST = timezone(timedelta(hours=+9), 'JST')
+        now_jst = datetime.now(JST)
+        yesterday_jst = now_jst - timedelta(days=1)
+        
+        start_time_jst = yesterday_jst.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time_jst = yesterday_jst.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        start_time = start_time_jst.astimezone(timezone.utc)
+        end_time = end_time_jst.astimezone(timezone.utc)
 
+        # キーワードが空等の場合はより広範なAI関連で検索
+        if not keyword or keyword.strip() == "":
+            query = '("AI" OR "ChatGPT" OR "生成AI" OR "LLM" OR "Claude" OR "プロンプト") -is:retweet'
+            display_kw = "AI関連全般"
+        else:
+            query = f'({keyword}) -is:retweet'
+            display_kw = keyword
+
+        try:
             results = []
-            if response.data:
-                for tweet in response.data:
-                    # public_metrics からいいね数を取得
-                    like_count = tweet.public_metrics['like_count']
-                    
-                    # URLの構築 (author_idが必要なので本当はuser情報もexpand取得する方が望ましいが簡易的に作成)
-                    tweet_url = f"https://twitter.com/i/web/status/{tweet.id}"
-                    
-                    results.append({
-                        "id": tweet.id,
-                        "text": tweet.text,
-                        "created_at": tweet.created_at.strftime("%Y-%m-%d %H:%M:%S") if tweet.created_at else "",
-                        "like_count": like_count,
-                        "url": tweet_url,
-                        "keyword": keyword
-                    })
+            for tweet in tweepy.Paginator(
+                self.client_v2.search_recent_tweets,
+                query=query,
+                start_time=start_time,
+                end_time=end_time,
+                max_results=100,
+                tweet_fields=['created_at', 'public_metrics', 'author_id']
+            ).flatten(limit=max_results):
+                like_count = tweet.public_metrics['like_count']
+                tweet_url = f"https://twitter.com/i/web/status/{tweet.id}"
+                results.append({
+                    "id": tweet.id,
+                    "text": tweet.text,
+                    "created_at": tweet.created_at.strftime("%Y-%m-%d %H:%M:%S") if tweet.created_at else "",
+                    "like_count": like_count,
+                    "url": tweet_url,
+                    "keyword": display_kw
+                })
             return results
         except Exception as e:
-            print(f"ツイート検索エラー (keyword: {keyword}): {e}")
+            print(f"ツイート検索エラー (keyword: {display_kw}): {e}")
             return []
 
     def generate_post_drafts_with_gemini(self, original_keyword: str, tweets_data: list[dict]) -> list[str]:

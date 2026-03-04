@@ -12,23 +12,21 @@ def main():
         sheets_api = GoogleSheetsController()
         xai_api = XAIController()
         
-        # 2. キーワードの取得と結合
-        print("\n--- 1. キーワード取得・抽出 ---")
+        # 2. キーワードの取得と設定
+        print("\n--- 1. キーワード取得・設定 ---")
         manual_keywords = sheets_api.get_manual_keywords()
-        print(f"手動設定キーワード: {manual_keywords}")
+        print(f"手動設定スプレッドシートのキーワード: {manual_keywords}")
         
-        trends = xai_api.get_japan_trends()
-        print(f"現在の日本のXトレンド: {len(trends)}件取得")
-        
-        trend_keywords = xai_api.extract_tech_keywords_with_gemini(trends)
-        print(f"Geminiによる抽出トレンドキーワード: {trend_keywords}")
-        
-        # リストを結合して重複を排除
-        all_keywords = list(set(manual_keywords + trend_keywords))
-        print(f"最終検索キーワード ({len(all_keywords)}件): {all_keywords}")
+        # AI関連を広範に調べるためトレンド取得はスキップし、空欄の場合はAI全般クエリを実行する
+        if not manual_keywords:
+            all_keywords = [""]
+        else:
+            all_keywords = manual_keywords
+            
+        print(f"最終検索キーワード: {all_keywords}")
         
         # 3. 各キーワードでバズツイートを検索・フィルタリングし、投稿案を生成
-        print("\n--- 2. バズツイート検索と投稿案の生成 ---")
+        print("\n--- 2. 昨日のAI関連バズツイート検索と投稿案の生成 ---")
         
         research_data_to_append = []
         draft_data_to_append = []
@@ -36,15 +34,18 @@ def main():
         date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
         for kw in all_keywords:
-            if not kw.strip():
-                continue
-                
-            print(f"\n[Keyword: {kw}] を検索しています...")
-            # X APIの制限回避のため、1度により多くの最新ツイート(100件)を取得してプログラム内で探す
-            tweets = xai_api.search_buzz_tweets(kw, max_results=100)
+            display_name = kw if kw else "AI関連全般"
+            print(f"\n[Keyword: {display_name}] で昨日投稿されたツイートを検索しています...")
             
-            # 要件「いいね数が100〜300の範囲」の投稿のみに絞り込む
+            # 最大500件まで遡って取得する
+            tweets = xai_api.search_buzz_tweets(kw, max_results=500)
+            
+            # 要件「いいね数100〜300の範囲」の投稿に絞り込む
             filtered_tweets = [t for t in tweets if 100 <= t['like_count'] <= 300]
+            
+            # いいね数が多い順に並び替え、上位のものを優先して分析に回す
+            filtered_tweets = sorted(filtered_tweets, key=lambda x: x['like_count'], reverse=True)
+            
             print(f"検索結果: {len(tweets)}件 -> 条件(いいね100~300)合致: {len(filtered_tweets)}件")
             
             if not filtered_tweets:
@@ -58,11 +59,11 @@ def main():
                 research_data_to_append.append(row)
                 
             print(f"  投稿案 (ドラフト) を生成中...")
-            drafts = xai_api.generate_post_drafts_with_gemini(kw, filtered_tweets)
+            drafts = xai_api.generate_post_drafts_with_gemini(display_name, filtered_tweets)
             
             # ドラフト結果の記録用データを構築
             # [作成日, 元キーワード, 投稿案1, 投稿案2, 投稿案3]
-            draft_row = [date_str, kw] + drafts
+            draft_row = [date_str, display_name] + drafts
             draft_data_to_append.append(draft_row)
 
         # 4. スプレッドシートへの記録処理
