@@ -122,13 +122,24 @@ class XAIController:
                 max_results=100,
                 tweet_fields=['created_at', 'public_metrics', 'author_id']
             ).flatten(limit=max_results):
-                like_count = tweet.public_metrics['like_count']
+                metrics = tweet.public_metrics
+                like_count = metrics.get('like_count', 0)
+                retweet_count = metrics.get('retweet_count', 0)
+                reply_count = metrics.get('reply_count', 0)
+                quote_count = metrics.get('quote_count', 0)
+                # v2 APIの仕様上 bookmark_count が取得できる場合は取得
+                bookmark_count = metrics.get('bookmark_count', 0)
+                
                 tweet_url = f"https://twitter.com/i/web/status/{tweet.id}"
                 results.append({
                     "id": tweet.id,
                     "text": tweet.text,
                     "created_at": tweet.created_at.strftime("%Y-%m-%d %H:%M:%S") if tweet.created_at else "",
                     "like_count": like_count,
+                    "retweet_count": retweet_count,
+                    "reply_count": reply_count,
+                    "quote_count": quote_count,
+                    "bookmark_count": bookmark_count,
                     "url": tweet_url,
                     "keyword": display_kw
                 })

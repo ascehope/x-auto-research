@@ -41,22 +41,23 @@ def main():
             # 最大500件まで（ただし1個人の1日のツイートなので実際は数件〜数十件）
             tweets = xai_api.search_buzz_tweets(account, max_results=500)
             
-            # 要件「いいね数100〜300の範囲」の投稿に絞り込む
-            filtered_tweets = [t for t in tweets if 100 <= t['like_count'] <= 300]
+            # 指定アカウントの全ツイートを対象にするためフィルタを撤廃
+            filtered_tweets = tweets
             
             # いいね数が多い順に並び替え、上位のものを優先して分析に回す
             filtered_tweets = sorted(filtered_tweets, key=lambda x: x['like_count'], reverse=True)
             
-            print(f"検索結果: {len(tweets)}件 -> 条件(いいね100~300)合致: {len(filtered_tweets)}件")
+            print(f"検索結果: {len(tweets)}件取得 (いいね数降順で処理)")
             
             if not filtered_tweets:
-                print(f"  条件に合うツイートが無かったためスキップします。")
+                print(f"  昨日のツイートが無かったためスキップします。")
                 continue
                 
             # リサーチ結果の記録用データを構築
             for t in filtered_tweets:
-                # [取得日時, 投稿テキスト, URL, いいね数]
-                row = [now_str, t['text'], t['url'], t['like_count']]
+                # [取得日時, 投稿テキスト, URL, いいね数, リポスト数(RT+引用), 返信数, 保存数]
+                total_reposts = t['retweet_count'] + t['quote_count']
+                row = [now_str, t['text'], t['url'], t['like_count'], total_reposts, t['reply_count'], t['bookmark_count']]
                 research_data_to_append.append(row)
                 
             print(f"  話題の要約と投稿案 (ドラフト) を生成中...")
